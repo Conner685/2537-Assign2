@@ -68,20 +68,9 @@ app.use(session({
 }));
 
 app.get('/', (req, res) => {
-  if (req.session.authenticated) {
-    res.send(`
-      <h1>Hello ${req.session.name}!</h1>
-      <a href="/members">Members Area</a><br>
-      <a href="/logout">Logout</a>
-    `);
-  } else {
-    res.send(`
-      <h1>Hello User!</h1>
-      <a href="/login">Login</a><br>
-      <a href="/createUser">Sign Up</a>
-    `);
-  }
+  res.render('index', { user: req.session.user });
 });
+
 
 app.get('/nosql-injection', async (req,res) => {
 	var username = req.query.user;
