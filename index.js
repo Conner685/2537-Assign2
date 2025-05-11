@@ -53,7 +53,11 @@ const mongoStore = MongoStore.create({
 
 app.use(express.urlencoded({ extended: false }));
 
-app.use(express.static('public'));
+const path = require('path');
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+app.use(express.static(path.join(__dirname, 'public')));
+
 
 app.use(session({
   secret: secretSession,
