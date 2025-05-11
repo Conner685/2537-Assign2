@@ -95,17 +95,20 @@ app.post('/login', async (req, res) => {
 
   const { error, value } = schema.validate(req.body);
   if (error) {
-    return res.render('login', { error: "Invalid input." });
+    return res.render('login', { error: 'Please enter a valid email and password.' });
   }
 
   const user = await User.findOne({ email: value.email });
-  if (!user || !(await bcrypt.compare(value.password, user.password))) {
-    return res.render('login', { error: "Email or password incorrect." });
+  const validPassword = user && await bcrypt.compare(value.password, user.password);
+
+  if (!user || !validPassword) {
+    return res.render('login', { error: 'Email or password incorrect.' });
   }
 
   req.session.user = { name: user.name, type: user.type, _id: user._id };
   res.redirect('/members');
 });
+
 
 // Logout
 app.get('/logout', (req, res) => {
