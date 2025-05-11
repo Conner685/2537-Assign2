@@ -1,2 +1,18 @@
-<%- include('templates/header', { title: 'Home', user: sessionUser }) %>
+<%- include('templates/header', { title: 'Sign Up', user: null }) %>
+<h2>Sign Up</h2>
+<form action="/signup" method="POST">
+  <div class="mb-3">
+    <label>Name</label>
+    <input type="text" name="name" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label>Email</label>
+    <input type="email" name="email" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label>Password</label>
+    <input type="password" name="password" class="form-control">
+  </div>
+  <button type="submit" class="btn btn-success">Sign Up</button>
+</form>
 <%- include('templates/footer') %>

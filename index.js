@@ -1,244 +1,164 @@
+// index.js
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
-const MongoStore = require('connect-mongo');
+const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 const Joi = require('joi');
-const { MongoClient } = require('mongodb');
-const salt = 12;
-const connectToDatabase = require('./databaseConnections');
-
-let userCollection;
-
-(async () => {
-    const db = await connectToDatabase();
-    userCollection = db.collection('users'); 
-})();
-
-const {
-  SESSION_CODE: secretSession,
-  MONGO_SECRET: dbSecret,
-  MONGO_USER: dbUser,
-  MONGO_PASSWORD: dbPassword,
-  MONGO_HOST: dbHost,
-  MONGODB_DATABASE: dbName,
-  PORT = 3000
-} = process.env;
-
-if (!secretSession) {
-  throw new Error('SESSION_CODE is not defined in environment variables');
-}
+const path = require('path');
+const User = require('./models/User');
 
 const app = express();
-const expireTime = 1000 * 60 * 60;
 
-async function connectDB() {
-  const uri = `mongodb+srv://${dbUser}:${dbPassword}@${dbHost}/${dbName}?retryWrites=true&w=majority`;
-  const client = new MongoClient(uri);
-  try {
-    await client.connect();
-    return client.db(dbName);
-  } catch (error) {
-    console.error('Database connection error:', error);
-    process.exit(1);
-  }
-}
-
-const mongoStore = MongoStore.create({
-  mongoUrl: `mongodb+srv://${dbUser}:${dbPassword}@${dbHost}/sessions`,
-  crypto: { secret: dbSecret },
-  collectionName: 'sessions'
-});
-
-
-app.use(express.urlencoded({ extended: false }));
-
-const path = require('path');
+// Middleware
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.use(express.static(path.join(__dirname, 'public')));
-
 
 app.use(session({
-  secret: secretSession,
-  store: mongoStore,
-  saveUninitialized: false,
-  resave: true,
-  cookie: { maxAge: expireTime, httpOnly: true }
+  secret: process.env.SESSION_CODE,
+  resave: false,
+  saveUninitialized: false
 }));
 
+// Connect to MongoDB
+const mongoURI = `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@${process.env.MONGO_HOST}/${process.env.MONGODB_DATABASE}?retryWrites=true&w=majority`;
+mongoose.connect(mongoURI)
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('MongoDB connection error:', err));
+
+// Middleware to protect routes
+function requireLogin(req, res, next) {
+  if (!req.session.user) return res.redirect('/');
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.session.user) return res.redirect('/login');
+  if (req.session.user.type !== 'admin') return res.status(403).render('403', { user: req.session.user });
+  next();
+}
+
+// Routes
+
+// Home
 app.get('/', (req, res) => {
   res.render('index', { user: req.session.user });
 });
 
-
-app.get('/nosql-injection', async (req,res) => {
-	var username = req.query.user;
-
-	if (!username) {
-		res.send(`<h3>no user provided - try /nosql-injection?user=name</h3> <h3>or /nosql-injection?user[$ne]=name</h3>`);
-		return;
-	}
-	console.log("user: "+username);
-
-	const schema = Joi.string().max(20).required();
-	const validationResult = schema.validate(username);
-
-	if (validationResult.error != null) {  
-	   console.log(validationResult.error);
-	   res.send("<h1 style='color:darkred;'>A NoSQL injection attack was detected!!</h1>");
-	   return;
-	}	
-
-	const result = await userCollection.find({username: username}).project({username: 1, password: 1, _id: 1}).toArray();
-
-	console.log(result);
-
-    res.send(`<h1>Hello ${username}</h1>`);
+// Sign Up
+app.get('/signup', (req, res) => {
+  res.render('signup', { error: null });
 });
 
-app.get('/createUser', (req,res) => {
-  var html = `
-  <h1>Create User</h1>
-  <form action='/submitUser' method='post'>
-      <input name='name' type='text' placeholder='Your Name' required><br>
-      <input name='email' type='email' placeholder='Email' required><br>
-      <input name='password' type='password' placeholder='Password' required><br>
-      <button>Submit</button>
-  </form>
-  <a href="/">Back to Home</a>`;
-  res.send(html);
-});
-
-
-app.get('/login', (req,res) => {
-    var html = `
-    log in
-    <form action='/loggingin' method='post'>
-    <input name='username' type='email' placeholder='Email' required>
-    <input name='password' type='password' placeholder='Password' required>
-    <button>Submit</button>
-    <a href='/'>Back to Home</a>
-    </form>
-    `;
-    res.send(html);
-});
-
-app.post('/submitUser', async (req,res) => {
-  const { name, email, password } = req.body;
-
+app.post('/signup', async (req, res) => {
   const schema = Joi.object({
-      name: Joi.string().max(50).required(),
-      email: Joi.string().email().required(),
-      password: Joi.string().max(20).required()
+    name: Joi.string().min(1).required(),
+    email: Joi.string().email().required(),
+    password: Joi.string().min(6).required()
   });
 
-  const validationResult = schema.validate({ name, email, password });
-  if (validationResult.error != null) {
-      const errorMessage = validationResult.error.details[0].message;
-      res.send(`
-          <h1>Error: ${errorMessage}</h1>
-          <a href="/createUser">Try again</a>`
-        );
-      return;
+  const { error, value } = schema.validate(req.body);
+  if (error) {
+    return res.render('signup', { error: "All fields are required and must be valid." });
   }
 
-  const existingUser = await userCollection.findOne({ email });
+  const existingUser = await User.findOne({ email: value.email });
   if (existingUser) {
-      res.send(`
-          <h1>Error: Email already registered</h1>
-          <a href="/createUser">Try again</a>`
-        );
-      return;
+    return res.render('signup', { error: "Email already registered." });
   }
 
-  try {
-      const hashedPassword = await bcrypt.hash(password, salt);
-      await userCollection.insertOne({
-          name,
-          email,
-          password: hashedPassword
-      });
+  const hashedPassword = await bcrypt.hash(value.password, 10);
+  const newUser = new User({
+    name: value.name,
+    email: value.email,
+    password: hashedPassword,
+    type: 'user'
+  });
 
-      req.session.authenticated = true;
-      req.session.email = email; 
-      req.session.name = name; 
-      req.session.cookie.maxAge = expireTime;
-      
-      res.redirect('/');
-  } catch (error) {
-      console.error('Error creating user:', error);
-      res.send(`
-          <h1>Error creating account</h1>
-          <a href="/createUser">Try again</a>
-      `);
-  }
+  await newUser.save();
+  req.session.user = { name: newUser.name, type: newUser.type, _id: newUser._id };
+  res.redirect('/members');
 });
 
-app.post('/loggingin', async (req, res) => {
-  const email = req.body.username;  // form field is still named 'username'
-  const password = req.body.password;
-
-  const schema = Joi.string().email().required();
-  const validationResult = schema.validate(email);
-  if (validationResult.error != null) {
-      console.log(validationResult.error);
-      res.redirect("/login");
-      return;
-  }
-
-  const result = await userCollection.find({ email }).project({ name: 1, email: 1, password: 1, _id: 1 }).toArray();
-
-  if (result.length !== 1) {
-      console.log("user not found");
-      res.redirect("/login");
-      return;
-  }
-
-  if (await bcrypt.compare(password, result[0].password)) {
-      console.log("correct password");
-      req.session.authenticated = true;
-      req.session.name = result[0].name;
-      req.session.email = email;
-      req.session.cookie.maxAge = expireTime;
-
-      res.redirect('/');
-  } else {
-      console.log("incorrect password");
-      res.redirect("/login");
-  }
+// Login
+app.get('/login', (req, res) => {
+  res.render('login', { error: null });
 });
 
-app.get('/logout', (req,res) => {
-	req.session.destroy();
+app.post('/login', async (req, res) => {
+  const schema = Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().required()
+  });
+
+  const { error, value } = schema.validate(req.body);
+  if (error) {
+    return res.render('login', { error: "Invalid input." });
+  }
+
+  const user = await User.findOne({ email: value.email });
+  if (!user || !(await bcrypt.compare(value.password, user.password))) {
+    return res.render('login', { error: "Email or password incorrect." });
+  }
+
+  req.session.user = { name: user.name, type: user.type, _id: user._id };
+  res.redirect('/members');
+});
+
+// Logout
+app.get('/logout', (req, res) => {
+  req.session.destroy();
   res.redirect('/');
 });
 
-app.get('/members', (req, res) => {
-  if (!req.session.authenticated) {
-      return res.redirect('/');
-  }
-
-  const images = ['Ugly_fish.jpg', 'Surprise_Fish.png', 'Dotted_fish.webp'];
-  const randomImage = images[Math.floor(Math.random() * images.length)];
-
-  res.send(`
-      <h1>Hello, ${req.session.name}!</h1>
-      <img src="/${randomImage}" alt=${randomImage} style="max-width: 500px;"><br>
-      <a href="/">Home</a> | 
-      <a href="/logout">Logout</a>`
-    );
+// Members
+app.get('/members', requireLogin, (req, res) => {
+  const images = ['/images/Ugly_fish.jpg', '/images/Dotted_fish.webp', '/images/Surprise_Fish.png'];
+  res.render('members', { user: req.session.user, images });
 });
 
-app.use((req, res) => {
-  res.status(404).send('Page not found - 404');
+// Admin
+app.get('/admin', requireAdmin, async (req, res) => {
+  const users = await User.find().lean();
+  res.render('admin', { user: req.session.user, users });
 });
 
-(async () => {
-  const db = await connectDB();
-  app.locals.db = db;
-  
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+app.get('/admin/promote', requireAdmin, async (req, res) => {
+  const schema = Joi.object({
+    user: Joi.string().hex().length(24).required()
   });
-})();
+  const { error } = schema.validate(req.query);
+  if (error) return res.status(400).send("Invalid user ID");
+
+  await User.updateOne({ _id: req.query.user }, { $set: { type: 'admin' } });
+  res.redirect('/admin');
+});
+
+app.get('/admin/demote', requireAdmin, async (req, res) => {
+  const schema = Joi.object({
+    user: Joi.string().hex().length(24).required()
+  });
+  const { error } = schema.validate(req.query);
+  if (error) return res.status(400).send("Invalid user ID");
+
+  await User.updateOne({ _id: req.query.user }, { $set: { type: 'user' } });
+  res.redirect('/admin');
+});
+
+// 403 Forbidden
+app.get('/403', (req, res) => {
+  res.status(403).render('403', { user: req.session.user });
+});
+
+// 404 Not Found
+app.use((req, res) => {
+  res.status(404).render('404', { user: req.session.user });
+});
+
+// Start Server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`App running on port ${PORT}`);
+});
