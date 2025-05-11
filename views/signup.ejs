@@ -1,5 +1,8 @@
 <%- include('templates/header', { title: 'Sign Up', user: null }) %>
 <h2>Sign Up</h2>
+<% if (error) { %>
+  <div class="alert alert-danger"><%= error %></div>
+<% } %>
 <form action="/signup" method="POST">
   <div class="mb-3">
     <label>Name</label>

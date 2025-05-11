@@ -1,5 +1,8 @@
 <%- include('templates/header', { title: 'Log In', user: null }) %>
 <h2>Log In</h2>
+<% if (error) { %>
+  <div class="alert alert-danger"><%= error %></div>
+<% } %>
 <form action="/login" method="POST">
   <div class="mb-3">
     <label>Email</label>
