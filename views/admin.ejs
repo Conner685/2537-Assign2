@@ -1,2 +1,10 @@
 <%- include('templates/header', { title: 'Home', user: sessionUser }) %>
+
+<h1>Admin Dashboard</h1>
+<ul class="list-group">
+  <% users.forEach(u => { %>
+    <%- include('templates/user_list_item', { user: u }) %>
+  <% }) %>
+</ul>
+
 <%- include('templates/footer') %>
