@@ -1,11 +1,14 @@
-<%- include('templates/header', { title: 'Home', user: user }) %>
-<div class="text-center">
-  <h1>Welcome to MySite</h1>
-  <% if (!user) { %>
-    <p>Please <a href="/signup">Sign Up</a> or <a href="/login">Log In</a>.</p>
-  <% } else { %>
-    <p>You are logged in as <strong><%= user.name %></strong>.</p>
-    <a href="/members" class="btn btn-primary">Go to Members Area</a>
-  <% } %>
-</div>
-<%- include('templates/footer') %>
+<%- include('templates/header', { title: 'Home' , user: user }) %>
+      <div class="text-center">
+        <h1>Welcome to MySite</h1>
+        <% if (!user) { %>
+          <p>Please <a href="/signup">Sign Up</a> or <a href="/login">Log In</a>.</p>
+          <% } else { %>
+            <p>You are logged in as <strong>
+                <%= user.name %>
+              </strong>.</p>
+            <a href="/members" class="btn btn-primary">Go to Members Area</a>
+            <% } %>
+      </div>
+    <%- include('templates/footer') %>
+  </body>

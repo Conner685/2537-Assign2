@@ -1,11 +1,11 @@
-<%- include('templates/header', { title: 'Members', user: user }) %>
-<h2>Hello, <%= user.name %>!</h2>
-<p>Welcome to the members-only area.</p>
-<div class="row">
-  <% images.forEach(src => { %>
-    <div class="col-md-4 mb-4">
-      <img src="<%= src %>" class="img-fluid rounded" alt="Member image">
-    </div>
-  <% }); %>
-</div>
-<%- include('templates/footer') %>
+<%- include('templates/header', { title: 'Members' , user: user }) %>
+  <h2>Hello, <%= user.name %>!</h2>
+  <p>Welcome to the members-only area.</p>
+  <div class="row">
+    <% images.forEach(src=> { %>
+      <div class="col-md-4 mb-4">
+        <img src="<%= src %>" class="img-fluid rounded" alt="Member image">
+      </div>
+      <% }); %>
+  </div>
+  <%- include('templates/footer') %>

@@ -1,11 +1,13 @@
 <!-- views/templates/user_list_item.ejs -->
 <li class="list-group-item d-flex justify-content-between align-items-center">
-  <span><%= user.name %> (<%= user.type %>)</span>
+  <span>
+    <%= user.name %> (<%= user.type %>)
+  </span>
   <div>
-    <% if (user.type !== 'admin') { %>
+    <% if (user.type !=='admin' ) { %>
       <a href="/admin/promote?user=<%= user._id %>" class="btn btn-sm btn-success">Promote</a>
-    <% } else { %>
-      <a href="/admin/demote?user=<%= user._id %>" class="btn btn-sm btn-warning">Demote</a>
-    <% } %>
+      <% } else { %>
+        <a href="/admin/demote?user=<%= user._id %>" class="btn btn-sm btn-warning">Demote</a>
+        <% } %>
   </div>
 </li>
